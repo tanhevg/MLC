@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+import args_
 
 def save_checkpoint(state, filename):
     torch.save(state, filename)
@@ -15,14 +16,15 @@ class DummyScheduler(torch.optim.lr_scheduler._LRScheduler):
     def step(self, epoch=None):
         pass
 
-def tocuda(data):
+def todevice(data):
+    device = args_.args.device
     if type(data) is list:
         if len(data) == 1:
-            return data[0].cuda()
+            return data[0].to(device=device)
         else:
-            return [x.cuda() for x in data]
+            return [x.to(device=device) for x in data]
     else:
-        return data.cuda()
+        return data.to(device=device)
 '''
 def net_grad_norm_max(model, p):
     grad_norms = [x.grad.data.norm(p).item() for x in model.parameters()]

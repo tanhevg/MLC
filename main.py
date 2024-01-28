@@ -16,12 +16,14 @@ import torch.distributed as dist
 from torch.utils.tensorboard import SummaryWriter
 
 from mlc import step_hmlc_K
-from mlc_utils import clone_parameters, tocuda, DummyScheduler
+from mlc_utils import clone_parameters, todevice, DummyScheduler
+import args_
 
 from models import *       
 from meta_models import *  
 
 parser = argparse.ArgumentParser(description='MLC Training Framework')
+parser.add_argument('--device', default='cuda')
 parser.add_argument('--dataset', type=str, choices=['cifar10', 'cifar100', 'clothing1m'], default='cifar10')
 parser.add_argument('--method', default='hmlc_K_mix', type=str, choices=['hmlc_K_mix', 'hmlc_K'])
 parser.add_argument('--seed', type=int, default=1) 
@@ -70,6 +72,7 @@ parser.add_argument('--logdir', type=str, default='runs', help='Log folder.')
 parser.add_argument('--local_rank', type=int, default=-1, help='local rank (-1 for local training)')
 
 args = parser.parse_args()
+args_.args = args
 
 # //////////////// set logging and model outputs /////////////////
 filename = '_'.join([args.dataset, args.method, args.corruption_type, args.runid, str(args.epochs), str(args.seed), str(args.data_seed)])
@@ -86,7 +89,8 @@ logger.info(args)
 logger.info('CUDA available:' + str(torch.cuda.is_available()))
 
 # cuda set up
-torch.cuda.set_device(0) # local GPU
+if torch.cuda.is_available():   
+    torch.cuda.set_device(0) # local GPU
 
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = True
@@ -132,8 +136,8 @@ def build_models(dataset, num_classes):
         hx_dim = 2048 # from resnet50
         meta_net = MetaNet(2048, cls_dim, 128, num_classes, args)
             
-    main_net = main_net.cuda()
-    meta_net = meta_net.cuda()
+    main_net = main_net.to(device=args.device)
+    meta_net = meta_net.to(device=args.device)
 
     logger.info('========== Main model ==========')
     logger.info(model)
@@ -241,14 +245,14 @@ def run():
 
 def test(main_net, test_loader): # this could be eval or test
     # //////////////////////// evaluate method ////////////////////////
-    correct = torch.zeros(1).cuda()
-    nsamples = torch.zeros(1).cuda()
+    correct = torch.zeros(1).to(device=args.device)
+    nsamples = torch.zeros(1).to(device=args.device)
 
     # forward
     main_net.eval()
 
     for idx, (*data, target) in enumerate(test_loader):
-        data, target = tocuda(data), tocuda(target)
+        data, target = todevice(data), todevice(target)
 
         # forward
         with torch.no_grad():
@@ -275,7 +279,8 @@ def train_and_test(main_net, meta_net, gold_loader, silver_loader, valid_loader,
 
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    torch.cuda.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(args.seed)
 
     main_net, meta_net, main_opt, optimizer, main_schdlr, scheduler, last_epoch = setup_training(main_net, meta_net, exp_id)
 
@@ -305,8 +310,8 @@ def train_and_test(main_net, meta_net, gold_loader, silver_loader, valid_loader,
         for i, (*data_s, target_s) in enumerate(silver_loader):
             *data_g, target_g = next(gold_loader)#.next()
 
-            data_g, target_g = tocuda(data_g), tocuda(target_g)
-            data_s, target_s_ = tocuda(data_s), tocuda(target_s)
+            data_g, target_g = todevice(data_g), todevice(target_g)
+            data_s, target_s_ = todevice(data_s), todevice(target_s)
 
             # bi-level optimization stage
             eta = main_schdlr.get_lr()[0]
