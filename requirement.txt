@@ -3,6 +3,8 @@ torchvision>=0.7.0
 numpy
 tqdm
 pillow
+tensorboard
+packaging
 
 
 
