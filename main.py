@@ -239,7 +239,7 @@ def run():
             logger.info('')
 
 
-    with open('out/' + filename, 'wb') as file:
+    with open(args.logdir + '/' + filename, 'wb') as file:
         pickle.dump(results, file)
     logger.info("Dumped results_ours in file: " + filename)
 
